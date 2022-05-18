@@ -12,6 +12,7 @@ from io import BytesIO
 from pathlib import Path
 from subprocess import check_output
 
+import jukebox
 import pygame
 import qrcode
 from unidecode import unidecode
@@ -34,10 +35,12 @@ class Karaoke:
     now_playing = None
     now_playing_filename = None
     now_playing_user = None
+    background_jukebox = None
     now_playing_transpose = 0
     is_paused = True
     process = None
     qr_code_path = None
+    large_qr_code_path = None
     base_path = os.path.dirname(__file__)
     volume_offset = 0
     loop_interval = 500  # in milliseconds
@@ -63,7 +66,8 @@ class Karaoke:
         vlc_path=None,
         vlc_port=None,
         logo_path=None,
-        show_overlay=False
+        show_overlay=False,
+        should_background_jukebox=False
     ):
 
         # override with supplied constructor args if provided
@@ -85,6 +89,9 @@ class Karaoke:
         self.vlc_port = vlc_port
         self.logo_path = self.default_logo_path if logo_path == None else logo_path
         self.show_overlay = show_overlay
+
+        if should_background_jukebox:
+            self.background_jukebox = jukebox.Jukebox()
 
         # other initializations
         self.platform = get_platform()
@@ -118,7 +125,8 @@ class Karaoke:
     VLC path: %s
     VLC port: %s
     log_level: %s
-    show overlay: %s"""
+    show overlay: %s
+    should background jukebox: %s"""
             % (
                 self.port,
                 self.hide_ip,
@@ -138,7 +146,8 @@ class Karaoke:
                 self.vlc_path,
                 self.vlc_port,
                 log_level,
-                self.show_overlay
+                self.show_overlay,
+                should_background_jukebox
             )
         )
 
@@ -162,6 +171,9 @@ class Karaoke:
 
         self.url = "http://%s:%s" % (self.ip, self.port)
 
+        if self.url == "http://192.168.1.228:5000":
+            self.url = "lunaschtuff.net"
+
         # get songs from download_path
         self.get_available_songs()
 
@@ -173,7 +185,7 @@ class Karaoke:
         self.generate_qr_code()
         if self.use_vlc:
             if (self.show_overlay):
-                self.vlcclient = vlcclient.VLCClient(port=self.vlc_port, path=self.vlc_path, qrcode=self.qr_code_path, url=self.url)
+                self.vlcclient = vlcclient.VLCClient(port=self.vlc_port, path=self.vlc_path, qrcode=self.large_qr_code_path, url=self.url)
             else: 
                 self.vlcclient = vlcclient.VLCClient(port=self.vlc_port, path=self.vlc_path)
         else:
@@ -265,6 +277,17 @@ class Karaoke:
         img = qr.make_image()
         self.qr_code_path = os.path.join(self.base_path, "qrcode.png")
         img.save(self.qr_code_path)
+
+        large_qr = qrcode.QRCode(
+            version=1,
+            box_size=4,
+            border=3
+        )
+        large_qr.add_data(self.url)
+        large_img = large_qr.make_image()
+        self.large_qr_code_path = os.path.join(self.base_path, "large_qrcode.png")
+        large_img.save(self.large_qr_code_path)
+        
 
     def get_default_display_mode(self):
         if self.use_vlc:
@@ -771,6 +794,8 @@ class Karaoke:
                         self.reset_now_playing()
                         if not pygame.display.get_active():
                             self.pygame_reset_screen()
+                        if self.background_jukebox:
+                            self.background_jukebox.pause()
                         self.render_next_song_to_splash_screen()
                         i = 0
                         while i < (self.splash_delay * 1000):
@@ -779,8 +804,11 @@ class Karaoke:
                         self.play_file(self.queue[0]["file"])
                         self.now_playing_user=self.queue[0]["user"]
                         self.queue.pop(0)
-                elif not pygame.display.get_active() and not self.is_file_playing():
-                    self.pygame_reset_screen()
+                elif not self.is_file_playing():
+                    if self.background_jukebox:
+                        self.background_jukebox.play()
+                    if not pygame.display.get_active():
+                        self.pygame_reset_screen()
                 self.handle_run_loop()
             except KeyboardInterrupt:
                 logging.warn("Keyboard interrupt: Exiting pikaraoke...")

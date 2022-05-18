@@ -764,6 +764,13 @@ if __name__ == "__main__":
         required=False,
     ),
     parser.add_argument(
+        "-j",
+        "--jukebox",
+        action="store_true",
+        help="Run jukebox while idle (uses Spotify app)",
+        required=False,
+    ),
+    parser.add_argument(
         "--admin-password",
         help="Administrator password, for locking down certain features of the web UI such as queue editing, player controls, song editing, and system shutdown. If unspecified, everyone is an admin.",
         default=None,
@@ -837,7 +844,8 @@ if __name__ == "__main__":
         vlc_path=args.vlc_path,
         vlc_port=args.vlc_port,
         logo_path=args.logo_path,
-        show_overlay=args.show_overlay
+        show_overlay=args.show_overlay,
+        should_background_jukebox=args.jukebox
     )
 
     if (args.developer_mode):
